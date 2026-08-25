@@ -1,0 +1,366 @@
+openapi: 3.1.0
+info:
+  title: ai-token-minimiser
+  version: 0.1.0
+  description: >
+    An OpenAI-compatible proxy that reduces the number of tokens sent to an
+    upstream provider (OpenAI, GitHub Models / Copilot, or a custom gateway)
+    before forwarding the request. It strips redundant whitespace, deduplicates
+    repeated message blocks, trims conversation history to a token budget, and
+    caches deterministic responses. Savings are reported via `x-token-minimiser-*`
+    response headers and the `/metrics` endpoint.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+servers:
+  - url: http://127.0.0.1:8787
+    description: Local proxy (default)
+tags:
+  - name: Operational
+    description: Health and metrics endpoints exposed by the proxy.
+  - name: OpenAI-compatible
+    description: OpenAI REST endpoints the proxy minimises or transparently forwards.
+paths:
+  /healthz:
+    get:
+      operationId: getHealth
+      tags: [Operational]
+      summary: Liveness probe
+      description: Returns proxy status. Never requires authentication.
+      security: []
+      responses:
+        '200':
+          description: The proxy is running.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+              examples:
+                ok:
+                  value:
+                    status: ok
+                    upstream: openai
+  /metrics:
+    get:
+      operationId: getMetrics
+      tags: [Operational]
+      summary: Cumulative savings metrics
+      description: >
+        Aggregate, content-free metrics for the process lifetime. No prompt or
+        response content is ever included.
+      responses:
+        '200':
+          description: Current metrics snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Metrics'
+              examples:
+                sample:
+                  value:
+                    requests: 128
+                    cacheHits: 17
+                    tokensBefore: 254300
+                    tokensAfter: 189210
+                    tokensSaved: 65090
+                    savingsPercent: 25.6
+                    cacheSize: 42
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/chat/completions:
+    post:
+      operationId: createChatCompletion
+      tags: [OpenAI-compatible]
+      summary: Create a (minimised) chat completion
+      description: >
+        Applies the configured minimisation strategies to the request, then
+        forwards it to the upstream provider. Deterministic requests
+        (`temperature: 0`, non-streaming) may be served from an in-memory cache.
+        The response body is the upstream's, unchanged. Savings are reported in
+        the `x-token-minimiser-*` response headers.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatCompletionRequest'
+            examples:
+              simple:
+                summary: Minimal request
+                value:
+                  model: gpt-4o-mini
+                  messages:
+                    - role: user
+                      content: Hello!
+              deterministic:
+                summary: Cacheable (temperature 0)
+                value:
+                  model: gpt-4o
+                  temperature: 0
+                  messages:
+                    - role: system
+                      content: You are a helpful assistant.
+                    - role: user
+                      content: What is 2 + 2?
+      responses:
+        '200':
+          description: Chat completion returned by the upstream provider.
+          headers:
+            x-token-minimiser-tokens-before:
+              description: Estimated prompt tokens before minimisation.
+              schema: { type: integer }
+            x-token-minimiser-tokens-after:
+              description: Estimated prompt tokens after minimisation.
+              schema: { type: integer }
+            x-token-minimiser-strategies:
+              description: Comma-separated strategies applied (`none` if all no-ops).
+              schema: { type: string }
+            x-token-minimiser-cache:
+              description: Present and set to `HIT` when served from cache.
+              schema: { type: string, enum: [HIT] }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatCompletionResponse'
+              examples:
+                success:
+                  summary: Upstream success
+                  value:
+                    id: chatcmpl-abc123
+                    object: chat.completion
+                    created: 1770000000
+                    model: gpt-4o-mini
+                    choices:
+                      - index: 0
+                        message:
+                          role: assistant
+                          content: Hello! How can I help you today?
+                        finish_reason: stop
+                    usage:
+                      prompt_tokens: 39
+                      completion_tokens: 9
+                      total_tokens: 48
+        '400':
+          description: The request body is invalid (missing `messages[]`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalid:
+                  value:
+                    error:
+                      message: 'Invalid request: messages[] required'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /v1/{path}:
+    parameters:
+      - name: path
+        in: path
+        required: true
+        description: >
+          Any other OpenAI-compatible sub-path (e.g. `models`, `embeddings`,
+          `responses`). Requests are forwarded to the upstream unchanged.
+        schema:
+          type: string
+    get:
+      operationId: passthroughGet
+      tags: [OpenAI-compatible]
+      summary: Transparent pass-through (GET)
+      description: Forwards the request to the upstream provider unchanged.
+      responses:
+        '200':
+          description: Upstream response, passed through unchanged.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              examples:
+                models:
+                  summary: GET /v1/models
+                  value:
+                    object: list
+                    data:
+                      - id: gpt-4o-mini
+                        object: model
+                      - id: gpt-4o
+                        object: model
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+    post:
+      operationId: passthroughPost
+      tags: [OpenAI-compatible]
+      summary: Transparent pass-through (POST)
+      description: Forwards the request to the upstream provider unchanged.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+            examples:
+              embeddings:
+                summary: POST /v1/embeddings
+                value:
+                  model: text-embedding-3-small
+                  input: hello world
+      responses:
+        '200':
+          description: Upstream response, passed through unchanged.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+components:
+  securitySchemes:
+    ProxyBearer:
+      type: http
+      scheme: bearer
+      description: >
+        Bearer token. When `PROXY_API_KEY` is configured on the proxy, callers
+        must send it here; otherwise the token is treated as the upstream key
+        and passed through (unless `UPSTREAM_API_KEY` overrides it).
+  responses:
+    Unauthorized:
+      description: >
+        `PROXY_API_KEY` is configured and the caller's Bearer token did not
+        match.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            unauthorized:
+              value:
+                error:
+                  message: Unauthorized
+                  type: auth_error
+    UpstreamError:
+      description: The upstream provider could not be reached.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            upstream:
+              value:
+                error:
+                  message: Upstream request failed
+                  type: upstream_error
+  schemas:
+    Health:
+      type: object
+      required: [status, upstream]
+      properties:
+        status:
+          type: string
+          example: ok
+        upstream:
+          type: string
+          example: openai
+    Metrics:
+      type: object
+      required:
+        [requests, cacheHits, tokensBefore, tokensAfter, tokensSaved, savingsPercent, cacheSize]
+      properties:
+        requests: { type: integer, description: Total chat requests handled. }
+        cacheHits: { type: integer, description: Requests served from cache. }
+        tokensBefore: { type: integer, description: Estimated prompt tokens before minimisation. }
+        tokensAfter: { type: integer, description: Estimated prompt tokens forwarded upstream. }
+        tokensSaved: { type: integer, description: tokensBefore − tokensAfter. }
+        savingsPercent: { type: number, description: Percentage of prompt tokens saved. }
+        cacheSize: { type: integer, description: Current number of cached entries. }
+    ChatMessage:
+      type: object
+      required: [role]
+      properties:
+        role:
+          type: string
+          enum: [system, developer, user, assistant, tool, function]
+        content:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: object
+                additionalProperties: true
+            - type: 'null'
+        name:
+          type: string
+        tool_call_id:
+          type: string
+      additionalProperties: true
+    ChatCompletionRequest:
+      type: object
+      required: [model, messages]
+      properties:
+        model:
+          type: string
+          example: gpt-4o-mini
+        messages:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+        stream:
+          type: boolean
+          default: false
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+          default: 1
+        top_p:
+          type: number
+        n:
+          type: integer
+        seed:
+          type: integer
+      additionalProperties: true
+    ChatCompletionResponse:
+      type: object
+      description: OpenAI chat completion object, passed through from the upstream.
+      properties:
+        id: { type: string }
+        object: { type: string, example: chat.completion }
+        created: { type: integer }
+        model: { type: string }
+        choices:
+          type: array
+          items:
+            type: object
+            properties:
+              index: { type: integer }
+              message:
+                $ref: '#/components/schemas/ChatMessage'
+              finish_reason: { type: string }
+        usage:
+          type: object
+          properties:
+            prompt_tokens: { type: integer }
+            completion_tokens: { type: integer }
+            total_tokens: { type: integer }
+      additionalProperties: true
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [message]
+          properties:
+            message: { type: string }
+            type: { type: string }
+security:
+  - ProxyBearer: []

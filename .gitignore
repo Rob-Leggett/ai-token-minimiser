@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Secrets & environment — NEVER commit these
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+config.local.json
+
+# Logs & caches
+*.log
+logs/
+.cache/
+coverage/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp

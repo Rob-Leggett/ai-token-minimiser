@@ -1,0 +1,300 @@
+{
+  "info": {
+    "name": "ai-token-minimiser",
+    "_postman_id": "a1b2c3d4-0000-4000-8000-aitokenminimiser",
+    "description": "OpenAI-compatible token-minimising proxy. Set the collection variables `baseUrl`, `apiKey` (upstream/proxy bearer) and `proxyKey` after import. Each request includes saved example responses for success and error cases.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:8787", "type": "string" },
+    { "key": "apiKey", "value": "sk-your-openai-key", "type": "string" },
+    { "key": "proxyKey", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Health check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/healthz", "host": ["{{baseUrl}}"], "path": ["healthz"] },
+        "description": "Liveness probe. Never requires authentication."
+      },
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/healthz", "host": ["{{baseUrl}}"], "path": ["healthz"] }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\n  \"status\": \"ok\",\n  \"upstream\": \"openai\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Metrics",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{proxyKey}}", "type": "text", "disabled": true }
+        ],
+        "url": { "raw": "{{baseUrl}}/metrics", "host": ["{{baseUrl}}"], "path": ["metrics"] },
+        "description": "Aggregate, content-free savings metrics. Enable the Authorization header only if PROXY_API_KEY is set."
+      },
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/metrics", "host": ["{{baseUrl}}"], "path": ["metrics"] }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\n  \"requests\": 128,\n  \"cacheHits\": 17,\n  \"tokensBefore\": 254300,\n  \"tokensAfter\": 189210,\n  \"tokensSaved\": 65090,\n  \"savingsPercent\": 25.6,\n  \"cacheSize\": 42\n}"
+        },
+        {
+          "name": "401 Unauthorized",
+          "originalRequest": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer wrong-key" }],
+            "url": { "raw": "{{baseUrl}}/metrics", "host": ["{{baseUrl}}"], "path": ["metrics"] }
+          },
+          "status": "Unauthorized",
+          "code": 401,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\n  \"error\": {\n    \"message\": \"Unauthorized\",\n    \"type\": \"auth_error\"\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Chat completion (minimised)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json", "type": "text" },
+          { "key": "Authorization", "value": "Bearer {{apiKey}}", "type": "text" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    { \"role\": \"system\", \"content\": \"You are a helpful assistant.\" },\n    { \"role\": \"user\", \"content\": \"Hello!\" }\n  ]\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/v1/chat/completions",
+          "host": ["{{baseUrl}}"],
+          "path": ["v1", "chat", "completions"]
+        },
+        "description": "Minimises the prompt, then forwards to the upstream. Inspect the x-token-minimiser-* response headers to see savings."
+      },
+      "response": [
+        {
+          "name": "200 Success",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{apiKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"Hello!\" }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/chat/completions",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "chat", "completions"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            { "key": "Content-Type", "value": "application/json" },
+            { "key": "x-token-minimiser-tokens-before", "value": "39" },
+            { "key": "x-token-minimiser-tokens-after", "value": "39" },
+            { "key": "x-token-minimiser-strategies", "value": "none" }
+          ],
+          "body": "{\n  \"id\": \"chatcmpl-abc123\",\n  \"object\": \"chat.completion\",\n  \"created\": 1770000000,\n  \"model\": \"gpt-4o-mini\",\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": { \"role\": \"assistant\", \"content\": \"Hello! How can I help you today?\" },\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": { \"prompt_tokens\": 39, \"completion_tokens\": 9, \"total_tokens\": 48 }\n}"
+        },
+        {
+          "name": "400 Bad Request",
+          "originalRequest": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"gpt-4o-mini\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/chat/completions",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "chat", "completions"]
+            }
+          },
+          "status": "Bad Request",
+          "code": 400,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\n  \"error\": {\n    \"message\": \"Invalid request: messages[] required\"\n  }\n}"
+        },
+        {
+          "name": "401 Unauthorized (proxy key mismatch)",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer wrong-key" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [ { \"role\": \"user\", \"content\": \"Hi\" } ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/chat/completions",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "chat", "completions"]
+            }
+          },
+          "status": "Unauthorized",
+          "code": 401,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\n  \"error\": {\n    \"message\": \"Unauthorized\",\n    \"type\": \"auth_error\"\n  }\n}"
+        },
+        {
+          "name": "502 Upstream Error",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{apiKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [ { \"role\": \"user\", \"content\": \"Hi\" } ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/chat/completions",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "chat", "completions"]
+            }
+          },
+          "status": "Bad Gateway",
+          "code": 502,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\n  \"error\": {\n    \"message\": \"Upstream request failed\",\n    \"type\": \"upstream_error\"\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Chat completion (cacheable, temperature 0)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json", "type": "text" },
+          { "key": "Authorization", "value": "Bearer {{apiKey}}", "type": "text" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"model\": \"gpt-4o\",\n  \"temperature\": 0,\n  \"messages\": [\n    { \"role\": \"system\", \"content\": \"You are a helpful assistant.\" },\n    { \"role\": \"user\", \"content\": \"What is 2 + 2?\" }\n  ]\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/v1/chat/completions",
+          "host": ["{{baseUrl}}"],
+          "path": ["v1", "chat", "completions"]
+        },
+        "description": "Send this twice: the second identical call is served from cache (x-token-minimiser-cache: HIT) and skips the upstream entirely."
+      },
+      "response": [
+        {
+          "name": "200 Cache HIT",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{apiKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"gpt-4o\",\n  \"temperature\": 0,\n  \"messages\": [ { \"role\": \"user\", \"content\": \"What is 2 + 2?\" } ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/chat/completions",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "chat", "completions"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            { "key": "Content-Type", "value": "application/json" },
+            { "key": "x-token-minimiser-cache", "value": "HIT" }
+          ],
+          "body": "{\n  \"id\": \"chatcmpl-xyz789\",\n  \"object\": \"chat.completion\",\n  \"created\": 1770000123,\n  \"model\": \"gpt-4o\",\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": { \"role\": \"assistant\", \"content\": \"2 + 2 = 4.\" },\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": { \"prompt_tokens\": 23, \"completion_tokens\": 7, \"total_tokens\": 30 }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Pass-through: list models",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{apiKey}}", "type": "text" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/models",
+          "host": ["{{baseUrl}}"],
+          "path": ["v1", "models"]
+        },
+        "description": "Any non-chat /v1/* route is forwarded to the upstream unchanged."
+      },
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{apiKey}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/v1/models",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "models"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\n  \"object\": \"list\",\n  \"data\": [\n    { \"id\": \"gpt-4o-mini\", \"object\": \"model\" },\n    { \"id\": \"gpt-4o\", \"object\": \"model\" }\n  ]\n}"
+        },
+        {
+          "name": "502 Upstream Error",
+          "originalRequest": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{apiKey}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/v1/models",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "models"]
+            }
+          },
+          "status": "Bad Gateway",
+          "code": 502,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\n  \"error\": {\n    \"message\": \"Upstream request failed\"\n  }\n}"
+        }
+      ]
+    }
+  ]
+}
