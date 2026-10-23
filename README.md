@@ -61,7 +61,7 @@ untouched.
 
 ## Quick start
 
-Requires **Node.js 20+**.
+Requires **Node.js 24+**.
 
 ```bash
 # 1. Install

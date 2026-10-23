@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "bin": {
     "ai-token-minimiser": "dist/index.js"
@@ -27,7 +27,7 @@
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
-    "@types/node": "^22.10.0",
+    "@types/node": "^24.19.2",
     "@typescript-eslint/eslint-plugin": "^8.18.0",
     "@typescript-eslint/parser": "^8.18.0",
     "eslint": "^8.57.1",
