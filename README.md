@@ -1,5 +1,7 @@
 # ai-token-minimiser
 
+[![License](https://img.shields.io/github/license/Rob-Leggett/ai-token-minimiser)](LICENSE) [![Node.js 26](https://img.shields.io/badge/Node.js-26-5FA04E?logo=nodedotjs&logoColor=white)](https://nodejs.org/) [![Express 5.3](https://img.shields.io/badge/Express-5.3-000000?logo=express&logoColor=white)](https://expressjs.com/) [![TypeScript 6.0](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+
 An **OpenAI-compatible proxy** that sits between your AI clients and the upstream
 provider (OpenAI, GitHub Models / Copilot, or any compatible gateway) and
 **reduces the number of tokens** sent upstream — lowering cost and latency
