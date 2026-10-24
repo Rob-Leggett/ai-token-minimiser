@@ -32,6 +32,20 @@
           "_postman_previewlanguage": "json",
           "header": [{ "key": "Content-Type", "value": "application/json" }],
           "body": "{\n  \"status\": \"ok\",\n  \"upstream\": \"openai\"\n}"
+        },
+        {
+          "name": "400 Malformed JSON body",
+          "originalRequest": {
+            "method": "GET",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{bad" },
+            "url": { "raw": "{{baseUrl}}/healthz", "host": ["{{baseUrl}}"], "path": ["healthz"] }
+          },
+          "status": "Bad Request",
+          "code": 400,
+          "_postman_previewlanguage": "html",
+          "header": [{ "key": "Content-Type", "value": "text/html; charset=utf-8" }],
+          "body": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>SyntaxError: Expected property name or &#39;}&#39; in JSON at position 1 (line 1 column 2)</pre>\n</body>\n</html>\n"
         }
       ]
     },

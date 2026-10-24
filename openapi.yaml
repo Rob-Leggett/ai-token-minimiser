@@ -40,6 +40,14 @@ paths:
                   value:
                     status: ok
                     upstream: openai
+        '400':
+          description: >
+            The request carried a `Content-Type: application/json` body that is not
+            valid JSON; Express's body parser rejects it before routing.
+          content:
+            text/html:
+              schema:
+                type: string
   /metrics:
     get:
       operationId: getMetrics

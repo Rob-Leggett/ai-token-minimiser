@@ -61,7 +61,7 @@ untouched.
 
 ## Quick start
 
-Requires **Node.js 24+**.
+Requires **Node.js 24 LTS** (npm 11). Install scripts are limited to the packages allow-listed under `allowScripts` in `package.json` (`esbuild`, `fsevents`).
 
 ```bash
 # 1. Install
